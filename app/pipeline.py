@@ -542,7 +542,6 @@ class _Pipeline:
 
     def _merge(self) -> Path:
         blocks: list[dict[str, Any]] = []
-        volumes: list[dict[str, Any]] = []
         for index, record in enumerate(
             sorted(self.chunks, key=lambda item: item["start"])
         ):
@@ -554,17 +553,19 @@ class _Pipeline:
                     "images": str(ocr_dir / "result" / "images"),
                 }
             )
-            volumes.append(
-                {
-                    "name": record["id"],
-                    "file": "book.md",
-                    "segments": [[record["id"], 1, None]],
-                }
-            )
         config = {
             "out": str(self.book_dir),
             "blocks": blocks,
-            "volumes": volumes,
+            "volumes": [
+                {
+                    "name": "book",
+                    "file": "book.md",
+                    "segments": [
+                        [record["id"], 1, None]
+                        for record in sorted(self.chunks, key=lambda item: item["start"])
+                    ],
+                }
+            ],
         }
         config_path = self.job_dir / "merge-volumes.json"
         _write_json(config_path, config)
