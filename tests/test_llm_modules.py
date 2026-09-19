@@ -233,3 +233,44 @@ def test_repair_loop_skips_non_unique_find(tmp_path, monkeypatch):
 
 def test_json_payload_shape_is_reported():
     assert json.dumps({"patches": [], "reason": ""})
+
+def test_proofread_parallel_preserves_chunk_order():
+    class Client:
+        def __init__(self):
+            self.calls = 0
+
+        def chat(self, messages, **kwargs):
+            self.calls += 1
+            content = messages[-1]["content"]
+            # Return a valid, uniquely-marked revision for every chunk.
+            if "# A" in content:
+                return "# A\nAOK"
+            if "# B" in content:
+                return "# B\nBOK"
+            return "# C\nCOK"
+
+    text = "# A\nbad\n# B\nokay\n# C\nfine"
+    result = proofread_markdown(text, Client(), max_chars=20, max_workers=3)
+    assert result.total_chunks == 3
+    assert result.applied == 3
+    assert result.skipped == 0
+    assert result.markdown == "# A\nAOK# B\nBOK# C\nCOK"
+
+
+def test_proofread_sequential_bails_out_after_consecutive_failures():
+    class Client:
+        def chat(self, messages, **kwargs):
+            return "totally-unrelated-short"
+
+    text = "# A\nbad one\n# B\nbad two\n# C\nbad three\n# D\nbad four"
+    result = proofread_markdown(
+        text,
+        Client(),
+        max_chars=20,
+        max_workers=1,
+        max_consecutive_failures=2,
+    )
+    assert result.applied == 0
+    assert result.skipped == 4
+    assert result.markdown == text
+    assert any("连续校对失败已达到上限" in warning for warning in result.warnings)

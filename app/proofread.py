@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import warnings
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from typing import Any
 
@@ -211,6 +212,8 @@ def proofread_markdown(
     max_chunks: int = 200,
     log: Callable[[str], None] | None = None,
     progress: Callable[[float], None] | None = None,
+    max_workers: int = 1,
+    max_consecutive_failures: int | None = None,
 ) -> ProofreadOutcome:
     chunks = split_markdown(text, max_chars=max_chars, max_chunks=max_chunks)
     warnings_out: list[str] = []
@@ -223,8 +226,12 @@ def proofread_markdown(
         if log is not None:
             log(message)
 
-    for index, chunk in enumerate(chunks):
-        revised: str | None = None
+    workers = max(1, int(max_workers))
+    limit = max_consecutive_failures
+    if limit is not None:
+        limit = max(1, int(limit))
+
+    def one(chunk: Chunk) -> str | None:
         try:
             raw = client.chat(
                 [
@@ -250,23 +257,74 @@ def proofread_markdown(
                 temperature=0.0,
             )
             if isinstance(raw, str) and _valid_revision(chunk.text, raw):
-                revised = raw
-            else:
-                emit(f"校对块 {index + 1} 未通过安全校验，已保留原文")
+                return raw
+            emit(f"校对块 {chunk.index + 1} 未通过安全校验，已保留原文")
         except LLMError as exc:
-            emit(f"校对块 {index + 1} 失败，已保留原文: {exc}")
+            emit(f"校对块 {chunk.index + 1} 失败，已保留原文: {exc}")
+        return None
 
-        if revised is None:
-            skipped += 1
-            pieces.append(chunk.text)
-        else:
-            applied += 1
-            pieces.append(revised)
-        if progress is not None:
-            progress((index + 1) / len(chunks) if chunks else 1.0)
+    if workers == 1 or len(chunks) <= 1:
+        consecutive_failures = 0
+        for chunk in chunks:
+            revised = one(chunk)
+            if revised is None:
+                skipped += 1
+                pieces.append(chunk.text)
+                consecutive_failures += 1
+                if limit is not None and consecutive_failures >= limit:
+                    emit(
+                        "连续校对失败已达到上限，剩余块保留原文以避免浪费时间。"
+                    )
+                    remaining = chunks[len(pieces):]
+                    skipped += len(remaining)
+                    pieces.extend(chunk.text for chunk in remaining)
+                    if progress is not None:
+                        progress(1.0)
+                    break
+            else:
+                applied += 1
+                pieces.append(revised)
+                consecutive_failures = 0
+            if progress is not None and len(pieces) <= len(chunks):
+                progress(min(1.0, len(pieces) / len(chunks)))
+    else:
+        # 并发模式让已提交任务全部完成，避免取消语义引入部分结果丢失；
+        # 连续失败计数在这里仅作为 summary 警示，不截断全文。
+        results: dict[int, str] = {}
+        failures: list[int] = []
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            futures = {pool.submit(one, chunk): chunk for chunk in chunks}
+            done_count = 0
+            for future in as_completed(futures):
+                chunk = futures[future]
+                revised = future.result()
+                done_count += 1
+                if revised is None:
+                    failures.append(chunk.index)
+                else:
+                    results[chunk.index] = revised
+                if progress is not None:
+                    progress(min(1.0, done_count / len(chunks)))
 
-    if progress is not None and not chunks:
-        progress(1.0)
+        applied = len(results)
+        skipped = len(chunks) - applied
+        pieces = [results.get(chunk.index, chunk.text) for chunk in chunks]
+
+        # 找出最长连续失败游程，用于提示模型/参数可能不适合这本书。
+        longest_run = 0
+        current_run = 0
+        failed_set = set(failures)
+        for chunk in chunks:
+            if chunk.index in failed_set:
+                current_run += 1
+                longest_run = max(longest_run, current_run)
+            else:
+                current_run = 0
+        if limit is not None and longest_run >= limit:
+            emit(
+                f"并发校对最长连续失败 {longest_run} 块，"
+                "建议检查模型能力或关闭校对。"
+            )
 
     return ProofreadOutcome(
         markdown="".join(pieces),

@@ -50,6 +50,7 @@
   const llmRepair = document.getElementById("llm-repair");
   const repairRounds = document.getElementById("repair-rounds");
   const chunkSize = document.getElementById("chunk-size");
+  const ocrWorkers = document.getElementById("ocr-workers");
   const cjkFont = document.getElementById("cjk-font");
   const mainFont = document.getElementById("main-font");
   const monoFont = document.getElementById("mono-font");
@@ -197,6 +198,7 @@
     if (llmRepair) llmRepair.checked = Boolean(defaults.llm_repair);
     if (repairRounds && defaults.repair_rounds != null) repairRounds.value = defaults.repair_rounds;
     if (chunkSize && defaults.chunk_size != null) chunkSize.value = defaults.chunk_size;
+    if (ocrWorkers && defaults.ocr_workers != null) ocrWorkers.value = defaults.ocr_workers;
     if (cjkFont && defaults.cjk_font) cjkFont.value = defaults.cjk_font;
     if (mainFont && defaults.main_font) mainFont.value = defaults.main_font;
     if (monoFont && defaults.mono_font) monoFont.value = defaults.mono_font;
@@ -237,6 +239,7 @@
     return {
       language: language ? language.value : "ch",
       chunk_size: integerOrEmpty(chunkSize),
+      ocr_workers: integerOrEmpty(ocrWorkers),
       proofread: proofread ? proofread.checked : false,
       llm_repair: llmRepair ? llmRepair.checked : true,
       repair_rounds: integerOrEmpty(repairRounds),

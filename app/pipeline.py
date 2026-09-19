@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -29,6 +30,24 @@ import mineru_pipeline
 base_url = os.environ.get("MINERU_BASE_URL")
 if base_url:
     mineru_pipeline.BASE_URL = base_url
+
+# MinerU's result CDN rejects some local TLS/proxy chains. requests reads
+# HTTP(S)_PROXY even with trust_env=False, so clear them around downloads.
+_original_download = mineru_pipeline.MinerUClient.download
+
+
+def _download_without_proxy(self, url, target):
+    keys = ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy")
+    saved = {key: os.environ.pop(key, None) for key in keys}
+    try:
+        return _original_download(self, url, target)
+    finally:
+        os.environ.update(
+            {key: value for key, value in saved.items() if value is not None}
+        )
+
+
+mineru_pipeline.MinerUClient.download = _download_without_proxy
 raise SystemExit(mineru_pipeline.main())
 """
 
@@ -485,12 +504,34 @@ class _Pipeline:
             raise PipelineError("分块页数必须在 1 到 200 页之间。")
 
         planned = _plan_ranges(self.pages, self.options.chunk_size)
-        completed: list[dict[str, Any]] = []
-        for index, (start, end) in enumerate(planned):
-            records = self._process_chunk(start, end)
-            completed.extend(records)
-            within = (index + 1) / len(planned) if planned else 1.0
-            self._report("ocr", within)
+        workers = max(1, int(getattr(self.options, "ocr_workers", 1) or 1))
+        if workers == 1 or len(planned) <= 1:
+            completed: list[dict[str, Any]] = []
+            for index, (start, end) in enumerate(planned):
+                records = self._process_chunk(start, end)
+                completed.extend(records)
+                within = (index + 1) / len(planned) if planned else 1.0
+                self._report("ocr", within)
+        else:
+            self._raw_log(f"OCR 并发处理 {len(planned)} 个分块，线程数 {workers}")
+            completed_by_index: dict[int, list[dict[str, Any]]] = {}
+            done_count = 0
+            with ThreadPoolExecutor(max_workers=workers) as pool:
+                futures = {
+                    pool.submit(self._process_chunk, start, end): (index, start, end)
+                    for index, (start, end) in enumerate(planned)
+                }
+                for future in as_completed(futures):
+                    index, _start, _end = futures[future]
+                    completed_by_index[index] = future.result()
+                    done_count += 1
+                    self._report("ocr", done_count / len(planned))
+            completed = [
+                record
+                for index in range(len(planned))
+                for record in completed_by_index[index]
+            ]
+
         failed = [record for record in completed if record.get("status") == "failed"]
         if failed:
             page_ranges = ", ".join(
@@ -849,6 +890,9 @@ class _Pipeline:
         quality, passed, reasons = self._quality(compile_report, markdown_reports["validation"])
         needs_review = not passed
         final_markdown = self.book_dir / "book.md"
+        self._report("finalize", 0.5)
+        self.stage_times["finalize"] = time.perf_counter() - self.stage_times["finalize"]
+        self._report("finalize", 1.0)
         summary_path = self._summary(
             quality=quality,
             needs_review=needs_review,
@@ -864,8 +908,6 @@ class _Pipeline:
             self._raw_log("质量门未通过，需要人工复核。")
         else:
             self._raw_log("转换完成。")
-        self._report("finalize", 0.5)
-        self._end_stage("finalize")
         _ = summary_path
         return PipelineResult(
             markdown=final_markdown,

@@ -36,6 +36,7 @@ DEFAULT_KEY_MAP: dict[str, str] = {
     "PDF2TEX_LLM_REPAIR": "llm_repair",
     "PDF2TEX_REPAIR_ROUNDS": "repair_rounds",
     "PDF2TEX_CHUNK_SIZE": "chunk_size",
+    "PDF2TEX_OCR_WORKERS": "ocr_workers",
 }
 ALLOWED_DEFAULT_KEYS = frozenset(DEFAULT_KEY_MAP)
 
@@ -114,6 +115,7 @@ class AppSettings:
                 "llm_repair": defaults["llm_repair"],
                 "repair_rounds": defaults["repair_rounds"],
                 "chunk_size": defaults["chunk_size"],
+                "ocr_workers": defaults["ocr_workers"],
                 "cjk_font": defaults["cjk_font"],
                 "main_font": defaults["main_font"],
                 "mono_font": defaults["mono_font"],

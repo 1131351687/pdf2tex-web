@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import threading
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -370,3 +371,126 @@ def test_run_summary_and_logs_do_not_contain_secrets(
     assert "MINERU_API_TOKEN" not in " ".join(
         args for call in runner.calls for args in call
     )
+
+
+def test_ocr_parallel_chunks_preserve_order(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """ocr_workers > 1 并发执行 MinerU 分块，且结果按页序合并。"""
+    monkeypatch.setenv("MINERU_API_TOKEN", "mineru-secret-token")
+    pdf = tmp_path / "input.pdf"
+    pdf.write_bytes(b"%PDF-1.4 fake source\n")
+
+    barrier = threading.Barrier(2, timeout=10)
+    lock = threading.Lock()
+    concurrent_hits: list[str] = []
+
+    def runner(command, *, cwd=None, env=None, log_file=None):
+        args = [str(item) for item in command]
+        script = Path(args[1]).name if len(args) > 1 else ""
+
+        if script == "extract_pdf_pages.py":
+            output = Path(args[3])
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_bytes(b"%PDF-1.4 fake subset\n")
+            return SimpleNamespace(returncode=0, stdout="")
+
+        if len(args) > 2 and args[1] == "-c":
+            marker = args.index("v4")
+            subset = Path(args[marker + 1])
+            output = Path(args[marker + 2])
+            chunk_id = output.parent.name
+            with lock:
+                concurrent_hits.append(chunk_id)
+            barrier.wait()
+            result_dir = output / "result"
+            result_dir.mkdir(parents=True, exist_ok=True)
+            (result_dir / "full.md").write_text(
+                f"# {chunk_id}\n\n$$x = 1$$\n", encoding="utf-8"
+            )
+            (output / "state.json").write_text(
+                json.dumps(
+                    {
+                        "status": "done",
+                        "source_sha256": _sha(pdf),
+                        "language": "ch",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            return SimpleNamespace(returncode=0, stdout="")
+
+        if script == "merge_volumes.py":
+            config = json.loads(Path(args[-1]).read_text(encoding="utf-8"))
+            lines: list[str] = []
+            for block in config["blocks"]:
+                lines.extend(
+                    Path(block["md"]).read_text(encoding="utf-8").splitlines()
+                )
+                lines.append("")
+            Path(config["out"]).mkdir(parents=True, exist_ok=True)
+            (Path(config["out"]) / "book.md").write_text(
+                "\n".join(lines).strip() + "\n", encoding="utf-8"
+            )
+            return SimpleNamespace(returncode=0, stdout="")
+
+        if script == "repair_latex.py":
+            input_md = Path(args[2])
+            output_md = Path(args[3])
+            output_md.write_text(
+                input_md.read_text(encoding="utf-8"), encoding="utf-8"
+            )
+            Path(args[5]).write_text(
+                json.dumps({"tag_fixes": [], "array_fixes": []}), encoding="utf-8"
+            )
+            return SimpleNamespace(returncode=0, stdout="")
+
+        if script == "fix_html_tables.py":
+            input_md = Path(args[2])
+            output_md = Path(_find_after(args, "--patch-md"))
+            output_md.write_text(
+                input_md.read_text(encoding="utf-8"), encoding="utf-8"
+            )
+            return SimpleNamespace(returncode=0, stdout="")
+
+        if script == "validate_markdown.py":
+            report_path = Path(_find_after(args, "--report"))
+            report_path.parent.mkdir(parents=True, exist_ok=True)
+            report_path.write_text(
+                json.dumps(
+                    {
+                        "replacement_chars": 0,
+                        "unbalanced_math_blocks": 0,
+                        "unbalanced_inline_math": 0,
+                        "missing_image_count": 0,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            return SimpleNamespace(returncode=0, stdout="")
+
+        raise AssertionError(f"unexpected command: {args}")
+
+    result, _stages, _fractions, logs = _run(
+        tmp_path,
+        options=JobOptions(
+            chunk_size=25,
+            ocr_workers=2,
+            no_pdf=True,
+        ),
+        command_runner=runner,
+    )
+
+    assert result.needs_review is False
+    assert len(concurrent_hits) == 2
+    summary = json.loads(
+        (tmp_path / "job" / "run-summary.json").read_text(encoding="utf-8")
+    )
+    assert [chunk["id"] for chunk in summary["chunks"]] == [
+        "pages-0001-0025",
+        "pages-0026-0050",
+    ]
+    assert all(chunk["status"] == "done" for chunk in summary["chunks"])
+    book_md = (tmp_path / "job" / "book" / "book.md").read_text(encoding="utf-8")
+    assert book_md.index("pages-0001-0025") < book_md.index("pages-0026-0050")
+    assert any("OCR 并发处理 2 个分块" in line for line in logs)

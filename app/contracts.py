@@ -60,9 +60,10 @@ class JobOptions:
     min_chunk_pages: int = 10
     max_depth: int = 4
     retries: int = 1
+    ocr_workers: int = 1
     proofread: bool = False
-    proofread_max_chars: int = 6000
-    proofread_max_chunks: int = 200
+    proofread_max_chars: int = 12000
+    proofread_max_chunks: int = 800
     llm_repair: bool = True
     repair_rounds: int = 5
     cjk_font: str = "SimSun"
