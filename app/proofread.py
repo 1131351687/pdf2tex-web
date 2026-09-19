@@ -147,19 +147,6 @@ def split_markdown(
             current = None
 
     for start, end, kind in raw_atoms:
-        if kind == "blank":
-            if current is None:
-                current = (start, end, kind)
-            else:
-                current = (current[0], end, current[2])
-            flush()
-            continue
-
-        if kind == "heading":
-            flush()
-            current = (start, end, kind)
-            continue
-
         if current is None:
             current = (start, end, kind)
         elif end - current[0] <= max_chars:

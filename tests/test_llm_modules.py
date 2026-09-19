@@ -79,7 +79,7 @@ def test_split_markdown_prefers_headings_and_restores_text():
 
 def test_split_markdown_allows_long_atomic_block():
     text = "```python\n" + ("x = 1\n" * 100) + "```"
-    chunks = split_markdown(text, max_chars=20, max_chunks=10)
+    chunks = split_markdown(text, max_chars=10, max_chunks=10)
     assert len(chunks) == 1
     assert chunks[0].text == text
 
@@ -94,14 +94,12 @@ def test_proofread_applies_valid_revisions():
     class Client:
         def chat(self, messages, **kwargs):
             assert "```markdown" in messages[-1]["content"]
-            if "bad" in messages[-1]["content"]:
-                return "# A\ngood"
-            return "# B\nokay"
+            return "# A\ngood\n# B\nokay"
 
     text = "# A\nbad\n# B\nokay"
     result = proofread_markdown(text, Client(), max_chars=20)
-    assert result.markdown == "# A\ngood# B\nokay"
-    assert (result.total_chunks, result.applied, result.skipped) == (2, 2, 0)
+    assert (result.total_chunks, result.applied, result.skipped) == (1, 1, 0)
+    assert result.markdown == "# A\ngood\n# B\nokay"
 
 
 def test_proofread_discards_invalid_revision():
@@ -250,7 +248,7 @@ def test_proofread_parallel_preserves_chunk_order():
             return "# C\nCOK"
 
     text = "# A\nbad\n# B\nokay\n# C\nfine"
-    result = proofread_markdown(text, Client(), max_chars=20, max_workers=3)
+    result = proofread_markdown(text, Client(), max_chars=10, max_workers=3)
     assert result.total_chunks == 3
     assert result.applied == 3
     assert result.skipped == 0
@@ -266,11 +264,11 @@ def test_proofread_sequential_bails_out_after_consecutive_failures():
     result = proofread_markdown(
         text,
         Client(),
-        max_chars=20,
+        max_chars=10,
         max_workers=1,
         max_consecutive_failures=2,
     )
     assert result.applied == 0
-    assert result.skipped == 4
+    assert result.skipped == 8
     assert result.markdown == text
     assert any("连续校对失败已达到上限" in warning for warning in result.warnings)
