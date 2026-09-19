@@ -19,3 +19,4 @@ venv/
 Thumbs.db
 .idea/
 .vscode/
+.edge-profile/

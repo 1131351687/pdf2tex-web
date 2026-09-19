@@ -177,8 +177,8 @@ def test_job_lifecycle_and_downloads(client) -> None:
     assert retried.json()["status"] == "queued"
     assert _wait_terminal(test_client, job_id)["status"] == "done"
 
-    # 任务目录里保存了原始 PDF 与汇总文件
-    assert (store.job_dir(job_id) / "input.pdf").is_file()
+    assert (store.job_dir(job_id) / "论文.pdf").is_file()
+    assert (store.job_dir(job_id) / "run-summary.json").is_file()
 
 
 def test_job_without_upload_artifact_kind(client) -> None:

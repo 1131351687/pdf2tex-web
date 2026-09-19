@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>PDF 转 TeX 工作台</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <div id="notice-region" class="notice-stack" aria-live="polite"></div>
+
+  <main class="workspace">
+    <section class="panel" aria-labelledby="settings-heading">
+      <div class="panel-head">
+        <div>
+          <h2 id="settings-heading">密钥设置</h2>
+          <p class="panel-subtitle">留空的密钥不会被修改。</p>
+        </div>
+      </div>
+
+      <form id="settings-form" class="form-grid">
+        <label class="field" for="mineru-token">
+          <span class="field-label">MinerU token</span>
+          <input id="mineru-token" name="mineru-token" type="password" autocomplete="off"
+                 aria-describedby="mineru-token-state">
+        </label>
+        <p id="mineru-token-state" class="field-hint">正在读取配置...</p>
+
+        <label class="field" for="llm-api-key">
+          <span class="field-label">LLM api_key</span>
+          <input id="llm-api-key" name="llm-api-key" type="password" autocomplete="off"
+                 aria-describedby="llm-api-key-state">
+        </label>
+        <p id="llm-api-key-state" class="field-hint">正在读取配置...</p>
+
+        <label class="field" for="llm-base-url">
+          <span class="field-label">Base URL</span>
+          <input id="llm-base-url" name="llm-base-url" type="text" autocomplete="off" spellcheck="false">
+        </label>
+
+        <label class="field" for="llm-model">
+          <span class="field-label">模型</span>
+          <input id="llm-model" name="llm-model" type="text" autocomplete="off" spellcheck="false">
+        </label>
+
+        <div class="form-actions">
+          <button type="submit" class="primary-button">保存到 .env</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel" aria-labelledby="new-job-heading">
+      <div class="panel-head">
+        <div>
+          <h2 id="new-job-heading">新建任务</h2>
+          <p class="panel-subtitle">上传 PDF 并设置转换参数。</p>
+        </div>
+      </div>
+
+      <form id="job-form" class="form-grid" novalidate>
+        <div class="file-row">
+          <label class="file-button" for="pdf-file">
+            <input id="pdf-file" name="pdf-file" type="file" accept=".pdf,application/pdf">
+            <span aria-hidden="true">选择 PDF</span>
+          </label>
+          <div class="file-meta">
+            <span id="file-name">未选择文件</span>
+            <span id="file-size" class="muted"></span>
+          </div>
+        </div>
+        <p id="submit-hint" class="inline-hint" aria-live="polite"></p>
+
+        <label class="field" for="language">
+          <span class="field-label">OCR 语言</span>
+          <select id="language" name="language">
+            <option value="ch">中文（ch）</option>
+            <option value="en">英文（en）</option>
+            <option value="ja">日文（ja）</option>
+            <option value="ko">韩文（ko）</option>
+            <option value="fr">法文（fr）</option>
+            <option value="de">德文（de）</option>
+            <option value="es">西班牙文（es）</option>
+            <option value="ru">俄文（ru）</option>
+          </select>
+        </label>
+
+        <div class="switch-group" role="group" aria-label="LLM 处理选项">
+          <label class="switch" for="proofread">
+            <input id="proofread" name="proofread" type="checkbox">
+            <span class="switch-track" aria-hidden="true"></span>
+            <span>LLM 校对</span>
+          </label>
+          <label class="switch" for="llm-repair">
+            <input id="llm-repair" name="llm-repair" type="checkbox">
+            <span class="switch-track" aria-hidden="true"></span>
+            <span>LLM 编译修复</span>
+          </label>
+        </div>
+
+        <label class="field compact-field" for="repair-rounds">
+          <span class="field-label">编译修复轮次</span>
+          <input id="repair-rounds" name="repair-rounds" type="number" min="0" max="20" value="5">
+        </label>
+
+        <details class="advanced-settings">
+          <summary>高级设置</summary>
+          <div class="advanced-grid">
+            <label class="field" for="chunk-size">
+              <span class="field-label">Chunk size</span>
+              <input id="chunk-size" name="chunk-size" type="number" min="1" value="50">
+            </label>
+            <label class="field" for="cjk-font">
+              <span class="field-label">CJK 字体</span>
+              <input id="cjk-font" name="cjk-font" type="text" value="SimSun" spellcheck="false">
+            </label>
+            <label class="field" for="main-font">
+              <span class="field-label">主字体</span>
+              <input id="main-font" name="main-font" type="text" value="DejaVu Sans" spellcheck="false">
+            </label>
+            <label class="field" for="mono-font">
+              <span class="field-label">等宽字体</span>
+              <input id="mono-font" name="mono-font" type="text" value="DejaVu Sans Mono" spellcheck="false">
+            </label>
+            <label class="field" for="math-font">
+              <span class="field-label">数学字体</span>
+              <input id="math-font" name="math-font" type="text" value="Cambria Math" spellcheck="false">
+            </label>
+            <label class="switch" for="markdown-only">
+              <input id="markdown-only" name="markdown-only" type="checkbox">
+              <span class="switch-track" aria-hidden="true"></span>
+              <span>仅输出 Markdown（不生成 PDF）</span>
+            </label>
+          </div>
+        </details>
+
+        <div class="form-actions">
+          <button type="submit" id="submit-job" class="primary-button">提交转换任务</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel" aria-labelledby="jobs-heading">
+      <div class="panel-head">
+        <div>
+          <h2 id="jobs-heading">任务区</h2>
+          <p class="panel-subtitle">当前任务、实时日志与历史记录。</p>
+        </div>
+        <button type="button" id="refresh-jobs" class="secondary-button">刷新</button>
+      </div>
+
+      <div class="job-card">
+        <div class="job-summary">
+          <span id="job-status" class="status-badge queued">未开始</span>
+          <span id="job-stage-label" class="stage-chip">等待任务</span>
+          <span id="job-filename" class="job-filename">未选择任务</span>
+          <span id="job-updated" class="muted"></span>
+        </div>
+        <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"
+             aria-labelledby="job-progress-label">
+          <span id="job-progress-label" class="sr-only">任务进度</span>
+          <div id="job-progress-bar" class="progress-bar"></div>
+        </div>
+        <p id="job-message" class="job-message">暂无任务消息。</p>
+        <div id="job-diagnostics" class="job-diagnostics" hidden></div>
+        <div class="action-row">
+          <button type="button" id="retry-job" class="secondary-button" hidden>重试</button>
+          <div id="download-buttons" class="download-buttons"></div>
+        </div>
+      </div>
+
+      <div class="log-block">
+        <div class="log-toolbar">
+          <h3>实时日志</h3>
+          <div class="log-actions">
+            <button type="button" id="log-pause" class="secondary-button">暂停</button>
+            <button type="button" id="log-clear" class="secondary-button">清空</button>
+          </div>
+        </div>
+        <pre id="log-output" class="log-output" aria-label="任务日志" tabindex="0"></pre>
+      </div>
+
+      <div class="history-block">
+        <h3>历史任务</h3>
+        <ul id="history-list" class="history-list"></ul>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

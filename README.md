@@ -75,3 +75,7 @@ python -m pytest -q
 ## 许可与致谢
 
 转换流程与脚本来自 `pdf2tex` skill 包；OCR 由 MinerU 提供。
+
+## 并行开发记录
+
+接口契约在 [docs/INTERFACES.md](docs/INTERFACES.md)，流水线、LLM 模块和前端的子代理任务书保存在 [docs/subagent-briefs/](docs/subagent-briefs/)。

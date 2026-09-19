@@ -26,6 +26,7 @@ from .contracts import (
     STAGES,
     JobOptions,
     JobRecord,
+    safe_stem,
 )
 from .settings import PROJECT_ROOT, load_settings
 
@@ -107,6 +108,10 @@ class JobStore:
     # ------------------------------------------------------------------ 基础
     def job_dir(self, job_id: str) -> Path:
         return self.root / job_id
+
+    def source_pdf(self, job_id: str, filename: str) -> Path:
+        """任务目录里源 PDF 的落盘路径；保留原文件名，产物命名才能与上传文件一致。"""
+        return self.job_dir(job_id) / f"{safe_stem(filename, 'input')}.pdf"
 
     def _bus(self, job_id: str) -> EventBus:
         with self._lock:
@@ -202,7 +207,7 @@ class JobStore:
         job_id = f"{stamp}-{uuid.uuid4().hex[:6]}"
         directory = self.job_dir(job_id)
         (directory / "logs").mkdir(parents=True, exist_ok=True)
-        target = directory / "input.pdf"
+        target = self.source_pdf(job_id, filename)
         source.replace(target)
         record = JobRecord(
             id=job_id,
@@ -230,7 +235,7 @@ class JobStore:
             raise KeyError(job_id)
         if record.terminal is False:
             return record
-        pdf = self.job_dir(job_id) / "input.pdf"
+        pdf = self.source_pdf(job_id, record.filename)
         if not pdf.is_file():
             raise FileNotFoundError("原始 PDF 不存在，无法重试")
         record.status = STATUS_QUEUED
@@ -337,7 +342,7 @@ class JobStore:
         try:
             result = self._runner(
                 job_dir=self.job_dir(job_id),
-                pdf=self.job_dir(job_id) / "input.pdf",
+                pdf=self.source_pdf(job_id, record.filename),
                 options=options,
                 llm=llm,
                 log=log,
