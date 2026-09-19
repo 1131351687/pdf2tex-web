@@ -1,0 +1,21 @@
+# secrets and runtime data
+.env
+.env.*
+!.env.example
+data/
+output/
+*.log
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+
+# os / editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

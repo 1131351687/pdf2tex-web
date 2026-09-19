@@ -1,0 +1,30 @@
+{
+  "out": "D:/ocr/book-tex",
+  "blocks": [
+    {
+      "label": "block1",
+      "tex": "D:/ocr/block1/result/full.fixed.tex"
+    },
+    {
+      "label": "block2",
+      "tex": "D:/ocr/block2/result/full.fixed.tex"
+    }
+  ],
+  "volumes": [
+    {
+      "name": "Volume I",
+      "file": "volume-1.tex",
+      "chapter_ranges": [[1, 4]]
+    },
+    {
+      "name": "Volume II",
+      "file": "volume-2.tex",
+      "chapter_ranges": [[5, 8]]
+    },
+    {
+      "name": "Volume III",
+      "file": "volume-3.tex",
+      "chapter_ranges": [[9, 12]]
+    }
+  ]
+}

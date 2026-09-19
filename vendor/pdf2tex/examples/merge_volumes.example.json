@@ -1,0 +1,31 @@
+{
+  "out": "D:/ocr/book-markdown",
+  "blocks": [
+    {
+      "label": "block1",
+      "md": "D:/ocr/block1/result/full.md",
+      "images": "D:/ocr/block1/result/images"
+    },
+    {
+      "label": "block2",
+      "md": "D:/ocr/block2/result/full.md",
+      "images": "D:/ocr/block2/result/images"
+    }
+  ],
+  "volumes": [
+    {
+      "name": "Volume I",
+      "file": "volume-1.md",
+      "segments": [
+        ["block1", 1, null]
+      ]
+    },
+    {
+      "name": "Volume II",
+      "file": "volume-2.md",
+      "segments": [
+        ["block2", 1, null]
+      ]
+    }
+  ]
+}
