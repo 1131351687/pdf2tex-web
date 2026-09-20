@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import re
 from dataclasses import dataclass
@@ -37,6 +38,7 @@ DEFAULT_KEY_MAP: dict[str, str] = {
     "PDF2TEX_REPAIR_ROUNDS": "repair_rounds",
     "PDF2TEX_CHUNK_SIZE": "chunk_size",
     "PDF2TEX_OCR_WORKERS": "ocr_workers",
+    "PDF2TEX_PROOFREAD_WORKERS": "proofread_workers",
 }
 ALLOWED_DEFAULT_KEYS = frozenset(DEFAULT_KEY_MAP)
 
@@ -116,6 +118,7 @@ class AppSettings:
                 "repair_rounds": defaults["repair_rounds"],
                 "chunk_size": defaults["chunk_size"],
                 "ocr_workers": defaults["ocr_workers"],
+                "proofread_workers": defaults["proofread_workers"],
                 "cjk_font": defaults["cjk_font"],
                 "main_font": defaults["main_font"],
                 "mono_font": defaults["mono_font"],
@@ -127,10 +130,20 @@ class AppSettings:
 
 def load_settings(path: Path | None = None) -> AppSettings:
     file_values = read_env_file(path)
+    extra_body: dict[str, Any] = {}
+    extra_raw = _effective("PDF2TEX_LLM_EXTRA_BODY", file_values)
+    if extra_raw:
+        try:
+            parsed = json.loads(extra_raw)
+            if isinstance(parsed, dict):
+                extra_body = parsed
+        except json.JSONDecodeError:
+            pass
     llm = LLMSettings(
         api_key=_effective("LLM_API_KEY", file_values),
         base_url=_effective("LLM_BASE_URL", file_values) or "https://api.deepseek.com",
         model=_effective("LLM_MODEL", file_values) or "deepseek-chat",
+        extra_body=extra_body,
     )
     defaults = JobOptions()
     overrides: dict[str, Any] = {}

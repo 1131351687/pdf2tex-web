@@ -272,3 +272,41 @@ def test_proofread_sequential_bails_out_after_consecutive_failures():
     assert result.skipped == 8
     assert result.markdown == text
     assert any("连续校对失败已达到上限" in warning for warning in result.warnings)
+
+
+def test_llm_chat_passes_extra_body():
+    """LLMSettings.extra_body 应透传给 OpenAI create 调用（用于禁用推理模型思考等）。"""
+    from types import SimpleNamespace
+    from app.contracts import LLMSettings
+    from app.llm import LLMClient
+
+    captured = {}
+
+    class FakeCompletions:
+        def create(self, **kwargs):
+            captured.update(kwargs)
+            message = SimpleNamespace(content="ok")
+            choice = SimpleNamespace(message=message)
+            response = SimpleNamespace(choices=[choice])
+            return response
+
+    class FakeChat:
+        completions = FakeCompletions()
+
+    class FakeOpenAI:
+        chat = FakeChat()
+
+    client = LLMClient(
+        LLMSettings(
+            api_key="test-key",
+            base_url="http://example.test/v1",
+            model="test-model",
+            extra_body={"thinking": {"type": "disabled"}},
+        )
+    )
+    client._client = FakeOpenAI()
+
+    result = client.chat([{"role": "user", "content": "hi"}])
+    assert result == "ok"
+    assert captured["extra_body"] == {"thinking": {"type": "disabled"}}
+    assert captured["model"] == "test-model"

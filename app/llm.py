@@ -64,6 +64,7 @@ class LLMClient:
         except (TypeError, ValueError):
             self.max_retries = 0
 
+        self._settings = settings
         try:
             self._client = OpenAI(
                 api_key=self.api_key,
@@ -89,6 +90,10 @@ class LLMClient:
         }
         if max_tokens is not None:
             payload["max_tokens"] = max_tokens
+
+        extra_body = getattr(self._settings, "extra_body", None)
+        if isinstance(extra_body, dict) and extra_body:
+            payload["extra_body"] = dict(extra_body)
 
         attempts = self.max_retries + 1
         last_error: Exception | None = None

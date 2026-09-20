@@ -158,6 +158,7 @@ def _default_proofread(
     *,
     max_chars: int,
     max_chunks: int,
+    max_workers: int,
     log: Callable[[str], None] | None,
     progress: Callable[[float], None] | None,
 ) -> Any:
@@ -168,6 +169,7 @@ def _default_proofread(
         client,
         max_chars=max_chars,
         max_chunks=max_chunks,
+        max_workers=max_workers,
         log=log,
         progress=progress,
     )
@@ -640,6 +642,7 @@ class _Pipeline:
                 client,
                 max_chars=self.options.proofread_max_chars,
                 max_chunks=self.options.proofread_max_chunks,
+                max_workers=getattr(self.options, "proofread_workers", 1),
                 log=self._raw_log,
                 progress=lambda value: self._report("proofread", value),
             )

@@ -30,7 +30,7 @@ LLMSettings(api_key: str, base_url: str, model: str, timeout: float = 120.0,
 
 JobOptions(language="ch", chunk_size=50, min_chunk_pages=10, max_depth=4,
            retries=1, ocr_workers=1, proofread=False, proofread_max_chars=12000,
-           proofread_max_chunks=800, llm_repair=True, repair_rounds=5,
+           proofread_max_chunks=800, proofread_workers=1, llm_repair=True, repair_rounds=5,
            cjk_font="SimSun", main_font="DejaVu Sans",
            mono_font="DejaVu Sans Mono", math_font="Cambria Math",
            no_pdf=False)
@@ -214,7 +214,7 @@ def compile_with_repair(tex: Path, work_dir: Path, client: LLMClient | None,
           "base_url": "https://api.deepseek.com",
           "model": "deepseek-chat"},
   "defaults": {"language": "ch", "proofread": false, "llm_repair": true,
-               "repair_rounds": 5, "chunk_size": 50, "ocr_workers": 1,
+               "repair_rounds": 5, "chunk_size": 50, "ocr_workers": 1, "proofread_workers": 1,
                "cjk_font": "SimSun", "main_font": "DejaVu Sans",
                "mono_font": "DejaVu Sans Mono", "math_font": "Cambria Math"}
 }
@@ -226,7 +226,7 @@ def compile_with_repair(tex: Path, work_dir: Path, client: LLMClient | None,
 {"env": {"MINERU_API_TOKEN": "...", "LLM_API_KEY": "...",
          "LLM_BASE_URL": "...", "LLM_MODEL": "..."},
  "defaults": {"language": "ch", "proofread": false, "llm_repair": true,
-              "repair_rounds": 5, "chunk_size": 50, "ocr_workers": 1}}
+              "repair_rounds": 5, "chunk_size": 50, "ocr_workers": 1, "proofread_workers": 1}}
 ```
 
 字段缺省表示不修改，空字符串表示清除。响应不得回显完整密钥。

@@ -42,6 +42,7 @@ class LLMSettings:
     model: str = "deepseek-chat"
     timeout: float = 120.0
     max_retries: int = 2
+    extra_body: dict[str, Any] = field(default_factory=dict)
 
     @property
     def enabled(self) -> bool:
@@ -64,6 +65,7 @@ class JobOptions:
     proofread: bool = False
     proofread_max_chars: int = 12000
     proofread_max_chunks: int = 800
+    proofread_workers: int = 1
     llm_repair: bool = True
     repair_rounds: int = 5
     cjk_font: str = "SimSun"
